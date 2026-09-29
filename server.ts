@@ -1,11 +1,91 @@
+/*
+Supabase SQL Schema:
+
+CREATE TABLE departments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  departmentID TEXT UNIQUE,
+  departmentName TEXT NOT NULL
+);
+
+CREATE TABLE skills (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  skillID TEXT UNIQUE,
+  skillName TEXT NOT NULL,
+  description TEXT
+);
+
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organizationID TEXT UNIQUE,
+  organizationName TEXT NOT NULL,
+  industry TEXT,
+  address TEXT,
+  location TEXT,
+  email TEXT,
+  phone TEXT,
+  description TEXT,
+  relevantDepartmentID TEXT REFERENCES departments(departmentID),
+  requiredSkillIDs TEXT[]
+);
+
+CREATE TABLE placements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  placementID TEXT UNIQUE,
+  organizationID TEXT REFERENCES organizations(organizationID),
+  position TEXT NOT NULL,
+  departmentID TEXT REFERENCES departments(departmentID),
+  availableSlots INTEGER DEFAULT 2,
+  status TEXT DEFAULT 'active'
+);
+
+CREATE TABLE students (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  studentID TEXT UNIQUE,
+  fullName TEXT NOT NULL,
+  regNo TEXT UNIQUE,
+  email TEXT UNIQUE,
+  password TEXT NOT NULL,
+  departmentID TEXT REFERENCES departments(departmentID),
+  level TEXT,
+  interest TEXT,
+  preferredLocation TEXT,
+  skillIDs TEXT[]
+);
+
+CREATE TABLE administrators (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  adminID TEXT UNIQUE,
+  fullName TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password TEXT NOT NULL
+);
+*/
+
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// In-Memory Database for MVP
+// Supabase Configuration
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Improved check to see if Supabase is actually configured with real keys
+const isSupabaseConfigured = 
+  supabaseUrl && 
+  supabaseKey && 
+  !supabaseUrl.includes('your_supabase') && 
+  !supabaseKey.includes('your_supabase');
+
+const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
+
+// In-Memory Fallback Database (used if Supabase is not configured yet)
 let departments = [
   { departmentID: 'dept-1', departmentName: 'Computer Science' },
   { departmentID: 'dept-2', departmentName: 'Computer Engineering' },
@@ -226,9 +306,34 @@ let recommendationsHistory: any[] = [];
 
 // API Endpoints
 
+// Helper to handle Supabase vs In-Memory
+const getTable = async (tableName: string, fallbackData: any[]) => {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from(tableName).select('*');
+    if (!error && data) return data;
+    if (error && error.message !== 'Invalid API key') {
+      console.warn(`Supabase error for ${tableName}, falling back to memory:`, error.message);
+    }
+  }
+  return fallbackData;
+};
+
 // Auth
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { emailOrReg, password, role } = req.body;
+  
+  if (isSupabaseConfigured && supabase) {
+    const tableName = role === 'student' ? 'students' : 'administrators';
+    const query = supabase.from(tableName).select('*').eq('email', emailOrReg).eq('password', password);
+    if (role === 'student') query.or(`regNo.eq.${emailOrReg}`);
+    
+    const { data, error } = await query.single();
+    if (!error && data) {
+      return res.json({ success: true, user: { ...data, role } });
+    }
+  }
+
+  // Fallback to in-memory
   if (role === 'student') {
     const student = students.find(s => (s.email === emailOrReg || s.regNo === emailOrReg) && s.password === password);
     if (student) {
@@ -243,8 +348,21 @@ app.post('/api/auth/login', (req, res) => {
   return res.status(401).json({ success: false, message: 'Invalid credentials or role.' });
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { fullName, regNo, email, password, departmentID, level, interest, preferredLocation, skillIDs } = req.body;
+  
+  if (isSupabaseConfigured && supabase) {
+    const { data: existing } = await supabase.from('students').select('id').or(`email.eq.${email},regNo.eq.${regNo}`).single();
+    if (existing) return res.status(400).json({ success: false, message: 'Student already exists.' });
+    
+    const { data, error } = await supabase.from('students').insert([{
+      fullName, regNo, email, password, departmentID, level, interest, preferredLocation, skillIDs
+    }]).select().single();
+    
+    if (!error && data) return res.json({ success: true, user: { ...data, role: 'student' } });
+  }
+
+  // Fallback to in-memory
   if (students.some(s => s.regNo === regNo || s.email === email)) {
     return res.status(400).json({ success: false, message: 'Student with this Registration Number or Email already exists.' });
   }
@@ -265,34 +383,49 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 // Departments & Skills
-app.get('/api/departments', (req, res) => {
-  res.json(departments);
+app.get('/api/departments', async (req, res) => {
+  const data = await getTable('departments', departments);
+  res.json(data);
 });
 
-app.post('/api/departments', (req, res) => {
+app.post('/api/departments', async (req, res) => {
   const { departmentName } = req.body;
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('departments').insert([{ departmentName }]).select().single();
+    if (!error && data) return res.json(data);
+  }
   const newDept = { departmentID: `dept-${Date.now()}`, departmentName };
   departments.push(newDept);
   res.json(newDept);
 });
 
-app.get('/api/skills', (req, res) => {
-  res.json(skills);
+app.get('/api/skills', async (req, res) => {
+  const data = await getTable('skills', skills);
+  res.json(data);
 });
 
-app.post('/api/skills', (req, res) => {
+app.post('/api/skills', async (req, res) => {
   const { skillName, description } = req.body;
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('skills').insert([{ skillName, description }]).select().single();
+    if (!error && data) return res.json(data);
+  }
   const newSkill = { skillID: `skill-${Date.now()}`, skillName, description: description || '' };
   skills.push(newSkill);
   res.json(newSkill);
 });
 
 // Organizations
-app.get('/api/organizations', (req, res) => {
-  const orgsWithDetails = organizations.map(org => {
-    const orgPlacements = placements.filter(p => p.organizationID === org.organizationID);
-    const dept = departments.find(d => d.departmentID === org.relevantDepartmentID);
-    const reqSkills = skills.filter(s => org.requiredSkillIDs?.includes(s.skillID));
+app.get('/api/organizations', async (req, res) => {
+  const orgs = await getTable('organizations', organizations);
+  const places = await getTable('placements', placements);
+  const depts = await getTable('departments', departments);
+  const sks = await getTable('skills', skills);
+
+  const orgsWithDetails = orgs.map((org: any) => {
+    const orgPlacements = places.filter((p: any) => (p.organizationID || p.organization_id) === (org.organizationID || org.id));
+    const dept = depts.find((d: any) => (d.departmentID || d.id) === (org.relevantDepartmentID || org.relevant_department_id));
+    const reqSkills = sks.filter((s: any) => (org.requiredSkillIDs || org.required_skill_ids)?.includes(s.skillID || s.id));
     return {
       ...org,
       departmentName: dept ? dept.departmentName : 'General',
@@ -303,7 +436,23 @@ app.get('/api/organizations', (req, res) => {
   res.json(orgsWithDetails);
 });
 
-app.get('/api/organizations/:id', (req, res) => {
+app.get('/api/organizations/:id', async (req, res) => {
+  if (isSupabaseConfigured && supabase) {
+    const { data: org, error } = await supabase.from('organizations').select('*').eq('organizationID', req.params.id).single();
+    if (org && !error) {
+      const { data: orgPlacements } = await supabase.from('placements').select('*').eq('organizationID', org.organizationID);
+      const { data: dept } = await supabase.from('departments').select('*').eq('departmentID', org.relevantDepartmentID).single();
+      const { data: sks } = await supabase.from('skills').select('*').in('skillID', org.requiredSkillIDs || []);
+      
+      return res.json({
+        ...org,
+        departmentName: dept ? dept.departmentName : 'General',
+        requiredSkills: sks || [],
+        placements: orgPlacements || []
+      });
+    }
+  }
+
   const org = organizations.find(o => o.organizationID === req.params.id);
   if (!org) return res.status(404).json({ message: 'Organization not found' });
   const orgPlacements = placements.filter(p => p.organizationID === org.organizationID);
@@ -317,8 +466,14 @@ app.get('/api/organizations/:id', (req, res) => {
   });
 });
 
-app.post('/api/organizations', (req, res) => {
+app.post('/api/organizations', async (req, res) => {
   const { organizationName, industry, address, location, email, phone, description, relevantDepartmentID, requiredSkillIDs } = req.body;
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('organizations').insert([{
+      organizationName, industry, address, location, email, phone, description, relevantDepartmentID, requiredSkillIDs: requiredSkillIDs || []
+    }]).select().single();
+    if (!error && data) return res.json(data);
+  }
   const newOrg = {
     organizationID: `org-${Date.now()}`,
     organizationName,
@@ -336,10 +491,14 @@ app.post('/api/organizations', (req, res) => {
 });
 
 // Placements
-app.get('/api/placements', (req, res) => {
-  const detailedPlacements = placements.map(p => {
-    const org = organizations.find(o => o.organizationID === p.organizationID);
-    const dept = departments.find(d => d.departmentID === p.departmentID);
+app.get('/api/placements', async (req, res) => {
+  const allPlacements = await getTable('placements', placements);
+  const allOrgs = await getTable('organizations', organizations);
+  const allDepts = await getTable('departments', departments);
+
+  const detailedPlacements = allPlacements.map((p: any) => {
+    const org = allOrgs.find((o: any) => (o.organizationID || o.id) === (p.organizationID || p.organization_id));
+    const dept = allDepts.find((d: any) => (d.departmentID || d.id) === (p.departmentID || p.department_id));
     return {
       ...p,
       organizationName: org ? org.organizationName : 'Unknown',
@@ -350,8 +509,14 @@ app.get('/api/placements', (req, res) => {
   res.json(detailedPlacements);
 });
 
-app.post('/api/placements', (req, res) => {
+app.post('/api/placements', async (req, res) => {
   const { organizationID, position, departmentID, availableSlots, status } = req.body;
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('placements').insert([{
+      organizationID, position, departmentID, availableSlots: availableSlots ? Number(availableSlots) : 2, status: status || 'active'
+    }]).select().single();
+    if (!error && data) return res.json(data);
+  }
   const newPlacement = {
     placementID: `place-${Date.now()}`,
     organizationID,
@@ -364,8 +529,14 @@ app.post('/api/placements', (req, res) => {
   res.json(newPlacement);
 });
 
-app.put('/api/placements/:id', (req, res) => {
+app.put('/api/placements/:id', async (req, res) => {
   const { status, availableSlots } = req.body;
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('placements').update({
+      status, availableSlots: availableSlots !== undefined ? Number(availableSlots) : undefined
+    }).eq('placementID', req.params.id).select().single();
+    if (!error && data) return res.json(data);
+  }
   const placement = placements.find(p => p.placementID === req.params.id);
   if (!placement) return res.status(404).json({ message: 'Placement not found' });
   if (status !== undefined) placement.status = status;
@@ -374,10 +545,14 @@ app.put('/api/placements/:id', (req, res) => {
 });
 
 // Students
-app.get('/api/students', (req, res) => {
-  const detailedStudents = students.map(s => {
-    const dept = departments.find(d => d.departmentID === s.departmentID);
-    const studentSkills = skills.filter(sk => s.skillIDs?.includes(sk.skillID));
+app.get('/api/students', async (req, res) => {
+  const allStudents = await getTable('students', students);
+  const allDepts = await getTable('departments', departments);
+  const allSkills = await getTable('skills', skills);
+
+  const detailedStudents = allStudents.map((s: any) => {
+    const dept = allDepts.find((d: any) => (d.departmentID || d.id) === (s.departmentID || s.department_id));
+    const studentSkills = allSkills.filter((sk: any) => (s.skillIDs || s.skill_ids)?.includes(sk.skillID || sk.id));
     return {
       ...s,
       departmentName: dept ? dept.departmentName : 'Unknown',
@@ -387,10 +562,18 @@ app.get('/api/students', (req, res) => {
   res.json(detailedStudents);
 });
 
-app.put('/api/students/:id', (req, res) => {
+app.put('/api/students/:id', async (req, res) => {
+  const { fullName, departmentID, level, interest, preferredLocation, skillIDs } = req.body;
+  
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.from('students').update({
+      fullName, departmentID, level, interest, preferredLocation, skillIDs
+    }).eq('studentID', req.params.id).select().single();
+    if (!error && data) return res.json({ success: true, user: { ...data, role: 'student' } });
+  }
+
   const student = students.find(s => s.studentID === req.params.id);
   if (!student) return res.status(404).json({ message: 'Student not found' });
-  const { fullName, departmentID, level, interest, preferredLocation, skillIDs } = req.body;
   if (fullName) student.fullName = fullName;
   if (departmentID) student.departmentID = departmentID;
   if (level) student.level = level;
@@ -401,37 +584,36 @@ app.put('/api/students/:id', (req, res) => {
 });
 
 // Recommendation Engine (Weighted Scoring Algorithm)
-// Criteria:
-// Academic/Department Match: 30% (100 if student department matches organization relevant department, else 0)
-// Skill Match: 30% (% of required skills matched by student skills)
-// Interest Match: 20% (100 if student interest matches industry or keywords, else 50)
-// Location Match: 20% (100 if preferred location matches org location, else 40)
-app.post('/api/recommendations', (req, res) => {
+app.post('/api/recommendations', async (req, res) => {
   const { studentID } = req.body;
-  const student = students.find(s => s.studentID === studentID);
+  
+  const allStudents = await getTable('students', students);
+  const allOrgs = await getTable('organizations', organizations);
+  const allPlacements = await getTable('placements', placements);
+  const allDepts = await getTable('departments', departments);
+  const allSkills = await getTable('skills', skills);
+
+  const student = allStudents.find((s: any) => (s.studentID || s.id) === studentID);
   if (!student) {
     return res.status(404).json({ message: 'Student not found for recommendations' });
   }
 
-  const activePlacements = placements.filter(p => p.status === 'active');
+  const activePlacements = allPlacements.filter((p: any) => p.status === 'active');
   const results: any[] = [];
 
-  organizations.forEach(org => {
-    // Check if org has active placements
-    const orgPlacements = activePlacements.filter(p => p.organizationID === org.organizationID);
+  allOrgs.forEach((org: any) => {
+    // Scoring logic remains same but using data from fetched sources
+    const orgPlacements = activePlacements.filter((p: any) => (p.organizationID || p.organization_id) === (org.organizationID || org.id));
     if (orgPlacements.length === 0) return;
 
-    // 1. Academic Match (30%)
     let academicScore = 0;
     if (org.relevantDepartmentID === student.departmentID) {
       academicScore = 100;
     } else {
-      // Check if any placement matches student department
-      const hasDeptMatch = orgPlacements.some(p => p.departmentID === student.departmentID);
+      const hasDeptMatch = orgPlacements.some((p: any) => p.departmentID === student.departmentID);
       academicScore = hasDeptMatch ? 80 : 30;
     }
 
-    // 2. Skill Match (30%)
     let skillScore = 0;
     const reqSkills: string[] = org.requiredSkillIDs || [];
     const studSkills: string[] = student.skillIDs || [];
@@ -442,22 +624,14 @@ app.post('/api/recommendations', (req, res) => {
       skillScore = Math.round((matchedSkills.length / reqSkills.length) * 100);
     }
 
-    // 3. Interest Match (20%)
     let interestScore = 60;
     const studInterest = (student.interest || '').toLowerCase();
     const orgIndustry = (org.industry || '').toLowerCase();
     const orgDesc = (org.description || '').toLowerCase();
     if (orgIndustry.includes(studInterest.split(' ')[0]) || orgDesc.includes(studInterest.split(' ')[0])) {
       interestScore = 100;
-    } else if (studInterest.includes('software') && (orgIndustry.includes('software') || orgIndustry.includes('technology'))) {
-      interestScore = 100;
-    } else if (studInterest.includes('networking') && orgIndustry.includes('networking')) {
-      interestScore = 100;
-    } else if (studInterest.includes('data') && orgIndustry.includes('data')) {
-      interestScore = 100;
     }
 
-    // 4. Location Match (20%)
     let locationScore = 40;
     const prefLoc = (student.preferredLocation || '').toLowerCase().trim();
     const orgLoc = (org.location || '').toLowerCase().trim();
@@ -466,11 +640,9 @@ app.post('/api/recommendations', (req, res) => {
     } else if (orgLoc.includes(prefLoc) || prefLoc.includes(orgLoc)) {
       locationScore = 80;
     } else {
-      locationScore = 50; // neighboring state/region
+      locationScore = 50;
     }
 
-    // Weighted Total Score Formula
-    // Academic (0.30) + Skill (0.30) + Interest (0.20) + Location (0.20)
     const totalScore = Math.round(
       (academicScore * 0.30) +
       (skillScore * 0.30) +
@@ -478,9 +650,9 @@ app.post('/api/recommendations', (req, res) => {
       (locationScore * 0.20)
     );
 
-    const dept = departments.find(d => d.departmentID === org.relevantDepartmentID);
-    const requiredSkillsObjects = skills.filter(s => reqSkills.includes(s.skillID));
-    const matchedSkillObjects = requiredSkillsObjects.filter(s => studSkills.includes(s.skillID));
+    const dept = allDepts.find((d: any) => d.departmentID === org.relevantDepartmentID);
+    const requiredSkillsObjects = allSkills.filter((s: any) => reqSkills.includes(s.skillID));
+    const matchedSkillObjects = requiredSkillsObjects.filter((s: any) => studSkills.includes(s.skillID));
 
     results.push({
       recommendationID: `rec-${Date.now()}-${org.organizationID}`,
@@ -506,10 +678,7 @@ app.post('/api/recommendations', (req, res) => {
     });
   });
 
-  // Sort descending by total score
   results.sort((a, b) => b.totalScore - a.totalScore);
-
-  // Store in history
   recommendationsHistory = recommendationsHistory.filter(r => r.studentID !== studentID);
   recommendationsHistory.push(...results);
 
@@ -523,13 +692,19 @@ app.get('/api/recommendations/:studentID', (req, res) => {
 });
 
 // Admin Dashboard stats
-app.get('/api/admin/stats', (req, res) => {
+app.get('/api/admin/stats', async (req, res) => {
+  const allStudents = await getTable('students', students);
+  const allOrgs = await getTable('organizations', organizations);
+  const allPlacements = await getTable('placements', placements);
+  const allDepts = await getTable('departments', departments);
+  const allSkills = await getTable('skills', skills);
+
   res.json({
-    totalStudents: students.length,
-    totalOrganizations: organizations.length,
-    totalPlacements: placements.length,
-    totalDepartments: departments.length,
-    totalSkills: skills.length,
+    totalStudents: allStudents.length,
+    totalOrganizations: allOrgs.length,
+    totalPlacements: allPlacements.length,
+    totalDepartments: allDepts.length,
+    totalSkills: allSkills.length,
     totalRecommendationsRun: recommendationsHistory.length
   });
 });
