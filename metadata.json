@@ -1,0 +1,7 @@
+{
+  "name": "SIWES Placement Recommendation System",
+  "description": "Web-based Students Industrial Work Experience Scheme (SIWES) Placement Recommendation System",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
