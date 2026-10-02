@@ -321,31 +321,45 @@ const getTable = async (tableName: string, fallbackData: any[]) => {
 // Auth
 app.post('/api/auth/login', async (req, res) => {
   const { emailOrReg, password, role } = req.body;
+  const cleanIdentifier = (emailOrReg || '').trim();
+  const cleanLower = cleanIdentifier.toLowerCase();
+  const cleanPass = (password || '').trim();
   
   if (isSupabaseConfigured && supabase) {
-    const tableName = role === 'student' ? 'students' : 'administrators';
-    const query = supabase.from(tableName).select('*').eq('email', emailOrReg).eq('password', password);
-    if (role === 'student') query.or(`regNo.eq.${emailOrReg}`);
-    
-    const { data, error } = await query.single();
-    if (!error && data) {
-      return res.json({ success: true, user: { ...data, role } });
+    try {
+      const tableName = role === 'student' ? 'students' : 'administrators';
+      const query = supabase.from(tableName).select('*').ilike('email', cleanLower).eq('password', cleanPass);
+      if (role === 'student') query.or(`regNo.ilike.${cleanIdentifier}`);
+      
+      const { data, error } = await query.maybeSingle();
+      if (!error && data) {
+        return res.json({ success: true, user: { ...data, role } });
+      }
+    } catch (dbErr) {
+      console.warn('Supabase login check notice, checking local database:', dbErr);
     }
   }
 
-  // Fallback to in-memory
+  // Fallback to in-memory database
   if (role === 'student') {
-    const student = students.find(s => (s.email === emailOrReg || s.regNo === emailOrReg) && s.password === password);
+    const student = students.find(s => 
+      (s.email.toLowerCase() === cleanLower || s.regNo.toLowerCase() === cleanLower || s.studentID.toLowerCase() === cleanLower) && 
+      s.password === cleanPass
+    );
     if (student) {
       return res.json({ success: true, user: { ...student, role: 'student' } });
     }
   } else if (role === 'admin') {
-    const admin = administrators.find(a => a.email === emailOrReg && a.password === password);
+    const admin = administrators.find(a => 
+      (a.email.toLowerCase() === cleanLower || a.adminID.toLowerCase() === cleanLower) && 
+      a.password === cleanPass
+    );
     if (admin) {
       return res.json({ success: true, user: { ...admin, role: 'admin' } });
     }
   }
-  return res.status(401).json({ success: false, message: 'Invalid credentials or role.' });
+
+  return res.status(401).json({ success: false, message: 'Invalid credentials or role. Please check your login details.' });
 });
 
 app.post('/api/auth/register', async (req, res) => {

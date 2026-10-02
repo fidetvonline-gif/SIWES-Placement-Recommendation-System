@@ -145,19 +145,62 @@ export function LoginModal({ isOpen, onClose, defaultRole, onLoginSuccess, depar
 
         {/* Role & Mode Switcher */}
         {!isRegistering && (
-          <div className="px-6 pt-4 bg-slate-50 border-b border-slate-200 flex gap-2">
-            <button
-              onClick={() => { setRole('student'); setEmailOrReg('student@fedpolyukana.edu.ng'); }}
-              className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${role === 'student' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Student Portal
-            </button>
-            <button
-              onClick={() => { setRole('admin'); setEmailOrReg('admin@fedpolyukana.edu.ng'); setPassword('adminpassword'); }}
-              className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${role === 'admin' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              Administrator Portal
-            </button>
+          <div className="px-6 pt-4 bg-slate-50 border-b border-slate-200 flex flex-col gap-3">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRole('student');
+                  setEmailOrReg('student@fedpolyukana.edu.ng');
+                  setPassword('password123');
+                  setError(null);
+                }}
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${role === 'student' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Student Portal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRole('admin');
+                  setEmailOrReg('admin@fedpolyukana.edu.ng');
+                  setPassword('adminpassword');
+                  setError(null);
+                }}
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${role === 'admin' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Administrator Portal
+              </button>
+            </div>
+
+            {/* Quick Demo Fill Buttons */}
+            <div className="pb-3 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-medium text-slate-500">Quick Demo Fill:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRole('student');
+                  setEmailOrReg('student@fedpolyukana.edu.ng');
+                  setPassword('password123');
+                  setError(null);
+                }}
+                className="text-[11px] font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200/60 transition-colors"
+              >
+                👤 Student
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRole('admin');
+                  setEmailOrReg('admin@fedpolyukana.edu.ng');
+                  setPassword('adminpassword');
+                  setError(null);
+                }}
+                className="text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-200/60 transition-colors"
+              >
+                🛡️ Admin
+              </button>
+            </div>
           </div>
         )}
 
