@@ -1,15 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-const isConfigured = 
+export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
   !supabaseUrl.includes('your_supabase') && 
-  !supabaseAnonKey.includes('your_supabase');
-
-export const supabase = createClient(
-  isConfigured ? supabaseUrl : 'https://placeholder-url.supabase.co',
-  isConfigured ? supabaseAnonKey : 'placeholder-key'
+  !supabaseAnonKey.includes('your_supabase') &&
+  (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://'))
 );
+
+export const supabase: SupabaseClient | null = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+

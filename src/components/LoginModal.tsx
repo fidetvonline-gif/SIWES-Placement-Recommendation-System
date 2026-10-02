@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Lock, Mail, User as UserIcon, Building, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Department, Skill } from '../types';
 import { loginUser, registerStudent } from '../services/api';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -40,23 +40,30 @@ export function LoginModal({ isOpen, onClose, defaultRole, onLoginSuccess, depar
     setLoading(true);
     setError(null);
     try {
-      // 1. Sign in with Supabase Auth (if configured)
-      if (import.meta.env.VITE_SUPABASE_URL) {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: emailOrReg.includes('@') ? emailOrReg : `${emailOrReg}@example.com`, // Fallback for reg number
-          password
-        });
-        if (authError) console.warn('Supabase Auth error:', authError.message);
+      // 1. Optionally sync with Supabase Auth only if real project credentials are provided
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { error: authError } = await supabase.auth.signInWithPassword({
+            email: emailOrReg.includes('@') ? emailOrReg : `${emailOrReg}@example.com`,
+            password
+          });
+          if (authError) console.warn('Supabase Auth notice:', authError.message);
+        } catch (authErr) {
+          console.warn('Supabase Auth call ignored:', authErr);
+        }
       }
 
-      // 2. Call our backend API (which also uses Supabase)
+      // 2. Call backend API for user credentials verification
       const data = await loginUser(emailOrReg, password, role);
       if (data.success) {
         onLoginSuccess(data.user);
         onClose();
+      } else {
+        setError(data.message || 'Login failed. Please verify credentials.');
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      console.error('Login submission error:', err);
+      setError(err.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,13 +74,17 @@ export function LoginModal({ isOpen, onClose, defaultRole, onLoginSuccess, depar
     setLoading(true);
     setError(null);
     try {
-      // 1. Sign up with Supabase Auth
-      if (import.meta.env.VITE_SUPABASE_URL) {
-        const { error: authError } = await supabase.auth.signUp({
-          email: regEmail,
-          password: regPassword
-        });
-        if (authError) console.warn('Supabase SignUp error:', authError.message);
+      // 1. Optionally sync with Supabase Auth only if real project credentials are provided
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { error: authError } = await supabase.auth.signUp({
+            email: regEmail,
+            password: regPassword
+          });
+          if (authError) console.warn('Supabase SignUp notice:', authError.message);
+        } catch (authErr) {
+          console.warn('Supabase SignUp call ignored:', authErr);
+        }
       }
 
       // 2. Call our backend API to create the profile
@@ -91,8 +102,11 @@ export function LoginModal({ isOpen, onClose, defaultRole, onLoginSuccess, depar
       if (data.success) {
         onLoginSuccess(data.user);
         onClose();
+      } else {
+        setError(data.message || 'Registration failed. Please check your details.');
       }
     } catch (err: any) {
+      console.error('Registration submission error:', err);
       setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);

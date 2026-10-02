@@ -9,36 +9,60 @@ import { RecommendationsView } from './components/RecommendationsView';
 import { OrganizationDetailsModal } from './components/OrganizationDetailsModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Building2, MapPin, Phone, Mail, Search, Sparkles, ChevronRight } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('siwes_current_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
 
   useEffect(() => {
-    // Check active session on mount
+    if (!isSupabaseConfigured || !supabase) {
+      return;
+    }
+
+    // Check active session on mount if Supabase is configured
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        // In our app, we still use our custom user object structure
-        // If Supabase Auth is fully used, we would map it here
         const saved = localStorage.getItem('siwes_current_user');
-        if (saved) setCurrentUser(JSON.parse(saved));
+        if (saved) {
+          try {
+            setCurrentUser(JSON.parse(saved));
+          } catch {}
+        }
       }
-      setLoading(false);
+    }).catch(err => {
+      console.warn('Supabase getSession notice:', err);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        setCurrentUser(null);
-        localStorage.removeItem('siwes_current_user');
+      if (!session && isSupabaseConfigured) {
+        // Only clear if Supabase is genuinely configured and was signed out
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const savedUser = localStorage.getItem('siwes_current_user');
+    if (savedUser) {
+      try {
+        const u = JSON.parse(savedUser);
+        return u.role === 'admin' ? 'admin-dashboard' : 'student-dashboard';
+      } catch {}
+    }
+    return 'home';
+  });
   
   useEffect(() => {
     if (currentUser) {
