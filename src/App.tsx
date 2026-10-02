@@ -8,6 +8,7 @@ import { StudentDashboard } from './components/StudentDashboard';
 import { RecommendationsView } from './components/RecommendationsView';
 import { OrganizationDetailsModal } from './components/OrganizationDetailsModal';
 import { AdminDashboard } from './components/AdminDashboard';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { Building2, MapPin, Phone, Mail, Search, Sparkles, ChevronRight } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
@@ -255,6 +256,8 @@ export default function App() {
         organizationID={selectedOrgId}
         onClose={() => setSelectedOrgId(null)}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

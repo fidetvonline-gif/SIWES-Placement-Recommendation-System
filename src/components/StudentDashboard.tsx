@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Department, Skill } from '../types';
 import { updateStudentProfile } from '../services/api';
-import { UserCheck, MapPin, BookOpen, Award, CheckCircle, Sparkles, Edit3, Save } from 'lucide-react';
+import { UserCheck, MapPin, BookOpen, Award, CheckCircle, Sparkles, Edit3, Save, Compass } from 'lucide-react';
 
 interface StudentDashboardProps {
   user: User;
@@ -84,8 +84,8 @@ export function StudentDashboard({ user, departments, skills, onUpdateUser, onNa
               onClick={onNavigateRecommendations}
               className="px-6 py-3.5 bg-white text-indigo-900 hover:bg-indigo-50 font-bold rounded-2xl shadow-lg transition-all flex items-center gap-2 text-sm whitespace-nowrap"
             >
-              <Sparkles className="w-4 h-4 text-indigo-600" />
-              <span>Get AI Recommendations</span>
+              <Compass className="w-4 h-4 text-indigo-600" />
+              <span>View Recommendations</span>
             </button>
           </div>
         </div>

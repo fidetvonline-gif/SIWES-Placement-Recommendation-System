@@ -1,6 +1,7 @@
 import React from 'react';
 import { GraduationCap, Shield, User as UserIcon, LogOut, Compass, Building2, BookOpen } from 'lucide-react';
 import { User } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
   currentUser: User | null;
@@ -70,8 +71,10 @@ export function Navbar({ currentUser, activeTab, setActiveTab, onOpenLogin, onLo
           </button>
         </nav>
 
-        {/* Zone 3: Primary Actions / User Account */}
-        <div className="flex items-center gap-3">
+        {/* Zone 3: Primary Actions / User Account & PWA Install */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <PWAInstallButton />
+
           {currentUser ? (
             <div className="flex items-center gap-3 bg-slate-100/80 px-3.5 py-1.5 rounded-full border border-slate-200">
               <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
@@ -97,16 +100,17 @@ export function Navbar({ currentUser, activeTab, setActiveTab, onOpenLogin, onLo
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onOpenLogin('student')}
-                className="px-4.5 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all whitespace-nowrap"
+                className="px-3.5 sm:px-4.5 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all whitespace-nowrap"
               >
                 Student Sign In
               </button>
               <button
                 onClick={() => onOpenLogin('admin')}
-                className="px-4.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition-all whitespace-nowrap flex items-center gap-1.5"
+                className="px-3.5 sm:px-4.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition-all whitespace-nowrap flex items-center gap-1.5"
               >
                 <Shield className="w-3.5 h-3.5" />
-                <span>Admin Portal</span>
+                <span className="hidden sm:inline">Admin Portal</span>
+                <span className="sm:hidden">Admin</span>
               </button>
             </div>
           )}

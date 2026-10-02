@@ -1,6 +1,7 @@
 import React from 'react';
-import { GraduationCap, Shield, Sparkles, Building2, BookOpen, Compass, ArrowRight, CheckCircle2, Award, Users } from 'lucide-react';
+import { GraduationCap, Shield, Sparkles, Building2, BookOpen, Compass, ArrowRight, CheckCircle2, Award, Users, Smartphone } from 'lucide-react';
 import { User } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface LandingPageProps {
   currentUser: User | null;
@@ -19,6 +20,11 @@ export function LandingPage({ currentUser, onOpenLogin, onNavigateTab }: Landing
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-900/60 border border-indigo-500/30 text-indigo-300 text-xs font-semibold mb-6">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>PWA Ready & Offline Supported</span>
+            </div>
+
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
               SIWES Placement Recommendation System
             </h1>
@@ -54,6 +60,8 @@ export function LandingPage({ currentUser, onOpenLogin, onNavigateTab }: Landing
                   </button>
                 </>
               )}
+              
+              <PWAInstallButton variant="hero" />
             </div>
 
             <div className="mt-12 pt-8 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
