@@ -71,6 +71,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(express.static(path.resolve('public')));
 
 // Supabase Configuration
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
